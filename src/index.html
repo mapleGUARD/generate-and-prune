@@ -6,61 +6,115 @@
     <title>Generate & Prune | Contextual Priming</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body onload="loadSessionHistory()">
+<body>
 
 <header>
     <h1>Generate & Prune 🧠</h1>
     <div class="subtitle">Contextual Priming & Adaptive Training</div>
+    
+    <div class="mode-switcher">
+        <button id="btn-mode-training" class="mode-btn" onclick="setAppMode('training')">Training Mode</button>
+        <button id="btn-mode-custom" class="mode-btn active" onclick="setAppMode('custom')">Custom Mode</button>
+    </div>
 </header>
 
 <div id="app-container">
 
     <div id="landing-screen" class="screen active">
-        <h2>Cognitive Workout Setup</h2>
         
-        <div class="settings-group">
-            <label for="num-rounds">Number of Rounds per Session</label>
-            <input type="number" id="num-rounds" value="5" min="1" max="20">
-            <small>Total DMN-ECN cycles in this session.</small>
-        </div>
-        
-        <div class="settings-group">
-            <label for="gen-duration">Generation Phase Duration (DMN)</label>
-            <input type="number" id="gen-duration" value="45" min="15" max="180">
-            <small>Seconds allowed for idea generation.</small>
+        <!-- TRAINING MODE VIEW -->
+        <div id="training-view" style="display:none;">
+            <h2>Neuro-Circuitry Workout</h2>
+            <div class="training-card">
+                <ul class="training-specs">
+                    <li><strong>10 Rounds Total</strong> (High Intensity)</li>
+                    <li><strong>Rounds 1-5:</strong> Standard Divergent Thinking</li>
+                    <li><strong>Rounds 6-10:</strong> Integrative "Connect the Dots"</li>
+                    <li><strong>Time:</strong> 60s Generation / 60s Pruning</li>
+                    <li><strong>Wildcards:</strong> <span style="color:var(--warning)">ALWAYS ON</span></li>
+                    <li><strong>Constraints:</strong> <span style="color:var(--danger)">RANDOMLY NEGATED</span></li>
+                </ul>
+            </div>
+            
+            <div class="settings-group" style="border-color: var(--brutal); margin-top: 20px;">
+                <div class="mode-toggle">
+                    <input type="checkbox" id="training-brutal-mode">
+                    <label for="training-brutal-mode" style="color: var(--brutal);"><strong>BRUTAL MODE: Session Restarts on First Failure!</strong></label>
+                </div>
+            </div>
         </div>
 
-        <div class="settings-group">
-            <label for="prune-duration">Pruning Phase Duration (ECN)</label>
-            <input type="number" id="prune-duration" value="60" min="30" max="180">
-            <small>Seconds allowed for critical review.</small>
-        </div>
-        
-        <div class="settings-group">
-            <label for="prompt-type">Prompt Focus</label>
-            <select id="prompt-type">
-                <option value="all">Mixed (Hypothetical, Functional, Constraint)</option>
-                <option value="functional">Functional/Object Use (Action-Oriented)</option>
-                <option value="hypothetical">Hypothetical/Scenario (Context-Oriented)</option>
-            </select>
-        </div>
-        
-        <div class="settings-group" style="border-color: var(--brutal);">
+        <!-- CUSTOM MODE VIEW -->
+        <div id="custom-view">
+            <h2>Cognitive Workout Setup</h2>
             
-            <div class="mode-toggle">
-                <input type="checkbox" id="brutal-mode">
-                <label for="brutal-mode" style="color: var(--brutal);"><strong>🔥 BRUTAL MODE: Session Ends on First Failure!</strong></label>
+            <div class="settings-group">
+                <label for="num-rounds">Number of Rounds per Session</label>
+                <input type="number" id="num-rounds" value="5" min="1" max="20">
+                <small>Total DMN-ECN cycles in this session.</small>
             </div>
             
-            <div class="mode-toggle">
-                <input type="checkbox" id="opposite-mode">
-                <label for="opposite-mode"><strong>Opposite Mode</strong> (Negative Constraints)</label>
+            <div class="settings-group">
+                <label for="gen-duration">Generation Phase Duration (DMN)</label>
+                <input type="number" id="gen-duration" value="45" min="15" max="180">
+                <small>Seconds allowed for idea generation.</small>
+            </div>
+
+            <div class="settings-group">
+                <label for="prune-duration">Pruning Phase Duration (ECN)</label>
+                <input type="number" id="prune-duration" value="60" min="30" max="180">
+                <small>Seconds allowed for critical review.</small>
             </div>
             
+            <div class="settings-group">
+                <label for="prompt-type">Prompt Focus</label>
+                <select id="prompt-type">
+                    <option value="all">Mixed (Hypothetical, Functional, Constraint)</option>
+                    <option value="functional">Functional/Object Use (Action-Oriented)</option>
+                    <option value="hypothetical">Hypothetical/Scenario (Context-Oriented)</option>
+                </select>
+            </div>
+            
+            <div class="settings-group" style="border-color: var(--brutal);">
+                
+                <!-- Primary Game Mode Selection -->
+                <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                    <label style="display:block; margin-bottom:8px; font-weight:bold;">Game Mode</label>
+                    <div style="display: flex; gap: 15px;">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                            <input type="radio" name="game-mode" value="normal" checked onchange="toggleGameMode()"> 
+                            Normal Mode
+                        </label>
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                            <input type="radio" name="game-mode" value="connect" onchange="toggleGameMode()"> 
+                            Connect the Dots
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mode-toggle">
+                    <input type="checkbox" id="brutal-mode">
+                    <label for="brutal-mode" style="color: var(--brutal);"><strong>BRUTAL MODE: Session Ends on First Failure!</strong></label>
+                </div>
+                
+                <div class="mode-toggle" id="opposite-mode-container">
+                    <input type="checkbox" id="opposite-mode">
+                    <label for="opposite-mode"><strong>Opposite Mode</strong> (Negative Constraints)</label>
+                </div>
+
+                <div class="mode-toggle">
+                    <input type="checkbox" id="wildcard-mode">
+                    <label for="wildcard-mode" style="color: var(--warning);"><strong>Wildcard Mode</strong> (Mid-Round Surprise)</label>
+                </div>
+                
+            </div>
         </div>
 
         <button class="btn" onclick="startIncubation()">Start Session</button>
-        <button class="btn" style="background: var(--secondary); margin-top: 0.5rem;" onclick="clearHistory()">Clear History</button>
+        <div style="display: flex; gap: 10px; margin-top: 0.5rem;">
+            <button class="btn" style="background: var(--accent); margin-top: 0;" onclick="openStats()">View Statistics</button>
+            <button class="btn" style="background: var(--secondary); margin-top: 0;" onclick="clearHistory()">Clear History</button>
+        </div>
     </div>
 
     <div id="gen-screen" class="screen">
@@ -70,6 +124,7 @@
         <div class="timer-box" id="gen-timer">00:00</div>
         <div class="prompt-box" id="gen-prompt"></div>
         <div id="gen-prime-display" style="text-align: center; color: var(--prime-color); font-weight: bold; margin-bottom: 10px; font-size: 0.9rem;"></div>
+        <div id="gen-wildcard" class="wildcard-box" style="display:none;"></div>
         
         <input type="text" id="idea-input" placeholder="Type idea and hit Enter..." autocomplete="off">
         <ul class="idea-list" id="gen-list"></ul>
@@ -80,23 +135,23 @@
         <div class="round-status" id="prune-round-status"></div>
         <span class="tag tag-ecn">ECN Activation: Prune!</span>
         <div class="timer-box" id="prune-timer">00:00</div>
+        <div id="prune-wildcard-display" style="color: var(--warning); font-weight:bold; margin-bottom:10px; text-align: center; display:none;"></div>
         <p>Evaluate your ideas based on <strong>Originality</strong> and <strong>Viability</strong>.</p>
         <div id="prune-list" style="max-height: 400px; overflow-y: auto;"></div>
         <button class="btn" onclick="endPruningPhase()">End Round</button>
     </div>
 
     <div id="result-screen" class="screen">
-        <h2>Session Complete 🎉</h2>
+        <h2>Session Complete!</h2>
         <p>You completed <strong id="summary-total-rounds">0</strong> rounds.</p>
         
         <div id="progress-graph">
-            <h3>Progress Across Sessions</h3>
+            <h3>Session Productivity (Cumulative Ideas)</h3>
             <div id="graph-container">
-                <p>Complete more sessions to see a graph of your progress!</p>
+                <!-- Graph rendered by JS -->
             </div>
             <div class="graph-legend">
-                <span class="legend-item legend-originality">Originality</span> | 
-                <span class="legend-item legend-viability">Viability</span>
+                <span class="legend-item" style="color: var(--primary);">● Cumulative Ideas Generated</span>
             </div>
         </div>
         
@@ -122,6 +177,18 @@
             <p>You did not meet the minimum requirement of <strong id="fail-required">0</strong> ideas.</p>
             <p>Ideas generated: <strong id="fail-generated">0</strong></p>
             <p style="margin-top: 1.5rem;" id="fail-next-step">The next round will begin shortly.</p>
+        </div>
+    </div>
+
+    <div id="stats-modal" class="modal-overlay">
+        <div class="stats-content">
+            <h2>Training Statistics 📈</h2>
+            <div class="stats-grid" id="global-stats-grid">
+                <!-- Populated by JS -->
+            </div>
+            <h3>Progress History</h3>
+            <div id="stats-graph-container" class="graph-container"></div>
+            <button class="btn" onclick="closeStats()" style="margin-top: 20px;">Close</button>
         </div>
     </div>
 
