@@ -82,6 +82,8 @@ let currentRound = 0;
 let roundPassed = false; 
 let isBrutalMode = false; 
 let isWildcardMode = false;
+let isConnectMode = false;
+let appMode = 'custom'; // 'custom' or 'training'
 
 let timerInterval;
 let currentPromptText = "";
@@ -95,6 +97,19 @@ const screens = {
     prune: document.getElementById('prune-screen'),
     result: document.getElementById('result-screen')
 };
+
+function setAppMode(mode) {
+    appMode = mode;
+    
+    // Update Buttons
+    document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`btn-mode-${mode}`).classList.add('active');
+    
+    // Update Views
+    document.getElementById('training-view').style.display = (mode === 'training') ? 'block' : 'none';
+    document.getElementById('custom-view').style.display = (mode === 'custom') ? 'block' : 'none';
+}
+
 const modal = document.getElementById('incubation-modal');
 const failModal = document.getElementById('fail-modal');
 const ideaInput = document.getElementById('idea-input');
@@ -132,6 +147,8 @@ function initSettingsListeners() {
             }
         }
     });
+    
+    // Radio buttons for game mode are handled by their onchange attribute calling toggleGameMode
 }
 
 function saveSessionHistory() {
@@ -152,6 +169,7 @@ function clearHistory() {
 // --- SETTINGS STORAGE ---
 
 function savePreferences() {
+    const gameMode = document.querySelector('input[name="game-mode"]:checked').value;
     const settings = {
         numRounds: document.getElementById('num-rounds').value,
         genDuration: document.getElementById('gen-duration').value,
@@ -159,7 +177,8 @@ function savePreferences() {
         promptType: document.getElementById('prompt-type').value,
         brutalMode: document.getElementById('brutal-mode').checked,
         oppositeMode: document.getElementById('opposite-mode').checked,
-        wildcardMode: document.getElementById('wildcard-mode').checked
+        wildcardMode: document.getElementById('wildcard-mode').checked,
+        gameMode: gameMode
     };
     localStorage.setItem('creativeTrainingSettings', JSON.stringify(settings));
 }
@@ -176,6 +195,14 @@ function loadPreferences() {
             if(s.brutalMode !== undefined) document.getElementById('brutal-mode').checked = s.brutalMode;
             if(s.oppositeMode !== undefined) document.getElementById('opposite-mode').checked = s.oppositeMode;
             if(s.wildcardMode !== undefined) document.getElementById('wildcard-mode').checked = s.wildcardMode;
+            
+            if(s.gameMode) {
+                const radio = document.querySelector(`input[name="game-mode"][value="${s.gameMode}"]`);
+                if(radio) {
+                    radio.checked = true;
+                    toggleGameMode(); // Update UI visibility based on loaded mode
+                }
+            }
             
             loadSettings(); // Sync global variables with loaded settings
         } catch (e) {
@@ -242,7 +269,6 @@ function renderGlobalStats() {
 }
 
 function renderGlobalGraph() {
-    // Reusing the graph logic but targeting the stats modal container
     const history = historicalSessions;
     const container = document.getElementById('stats-graph-container');
     container.innerHTML = '';
@@ -252,64 +278,98 @@ function renderGlobalGraph() {
         return;
     }
 
-    const W = 500; 
-    const H = 200; 
-    const P = 20; 
-    const maxY = 5; 
-    const totalSessions = history.length;
-    const xStep = totalSessions > 1 ? W / (totalSessions - 1) : W;
+    // Calculate Cumulative Data
+    const dataPoints = [];
+    let cumulativeTotal = 0;
     
-    let svg = `<svg width="100%" height="100%" viewBox="0 0 ${W + 2 * P} ${H + 2 * P}" style="background: #fff;">`;
-    svg += `<g transform="translate(${P}, ${P})">`;
-
-    // Grid lines
-    for (let i = 0; i <= maxY; i++) {
-        const y = H - (i / maxY) * H;
-        svg += `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="2" />`;
-    }
-    
-    // X Axis Labels (Session Numbers)
-    // If too many sessions, skip labels
-    const skip = Math.ceil(totalSessions / 10);
-    for (let i = 0; i < totalSessions; i+=skip) {
-        const x = i * xStep;
-        svg += `<text x="${x}" y="${H + 15}" font-size="10" fill="var(--secondary)" text-anchor="middle">${i + 1}</text>`;
-    }
-
-    const pointsOrg = [];
-    const pointsViab = [];
+    // Start with 0,0 point for the graph
+    dataPoints.push({ session: 0, total: 0 });
 
     history.forEach((session, index) => {
-        const x = index * xStep;
-        const yOrg = H - (session.avgOriginality / maxY) * H;
-        const yViab = H - (session.avgViability / maxY) * H;
-        
-        pointsOrg.push(`${x},${yOrg}`);
-        pointsViab.push(`${x},${yViab}`);
+        cumulativeTotal += session.totalIdeas;
+        dataPoints.push({ session: index + 1, total: cumulativeTotal });
     });
 
-    svg += `<polyline fill="none" stroke="var(--primary)" stroke-width="2" points="${pointsOrg.join(' ')}" />`;
-    pointsOrg.forEach(point => {
-        const [x, y] = point.split(',');
-        svg += `<circle cx="${x}" cy="${y}" r="3" fill="var(--primary)" />`;
-    });
+    const maxIdeas = cumulativeTotal;
+    const totalSessions = history.length;
     
-    svg += `<polyline fill="none" stroke="var(--accent)" stroke-width="2" points="${pointsViab.join(' ')}" />`;
-    pointsViab.forEach(point => {
+    const W = 500; 
+    const H = 200; 
+    const P = 30; 
+    
+    // Y-Axis Scale
+    const yMax = Math.max(maxIdeas * 1.1, 10);
+    
+    let svg = `<svg width="100%" height="100%" viewBox="0 0 ${W + 2 * P} ${H + 2 * P}" style="background: #fff; border-radius: 8px;">`;
+    svg += `<g transform="translate(${P}, ${P})">`;
+
+    // Grid lines (Y axis)
+    for (let i = 0; i <= 5; i++) {
+        const val = (yMax / 5) * i;
+        const y = H - (i / 5) * H;
+        svg += `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="2" />`;
+        svg += `<text x="-8" y="${y + 4}" font-size="10" fill="#94a3b8" text-anchor="end">${Math.round(val)}</text>`;
+    }
+    
+    // X Axis Labels
+    const xStep = W / totalSessions;
+    // If too many sessions, skip labels
+    const skip = Math.ceil(totalSessions / 10);
+    
+    for (let i = 0; i <= totalSessions; i+=skip) {
+        const x = (i / totalSessions) * W;
+        svg += `<text x="${x}" y="${H + 15}" font-size="10" fill="#94a3b8" text-anchor="middle">${i}</text>`;
+    }
+    svg += `<text x="${W / 2}" y="${H + 35}" font-size="10" fill="#64748b" text-anchor="middle">Sessions Completed</text>`;
+
+    // Calculate Coordinates
+    const points = dataPoints.map(p => {
+        const x = (p.session / totalSessions) * W;
+        const y = H - (p.total / yMax) * H;
+        return `${x},${y}`;
+    });
+
+    // Area Fill
+    const areaPoints = [`0,${H}`, ...points, `${points[points.length-1].split(',')[0]},${H}`];
+    svg += `<polygon points="${areaPoints.join(' ')}" fill="var(--primary)" fill-opacity="0.1" />`;
+
+    // The Line
+    svg += `<polyline fill="none" stroke="var(--primary)" stroke-width="3" points="${points.join(' ')}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    
+    // The Dots
+    points.forEach((point, i) => {
         const [x, y] = point.split(',');
-        svg += `<circle cx="${x}" cy="${y}" r="3" fill="var(--accent)" />`;
+        // Only show dots if we don't have too many points, or just the last one
+        if (totalSessions < 20 || i === points.length - 1) {
+            svg += `<circle cx="${x}" cy="${y}" r="4" fill="#fff" stroke="var(--primary)" stroke-width="2" />`;
+        }
     });
 
     svg += `</g></svg>`;
-
-    container.innerHTML += svg;
     
-    // Y Axis Labels
-    container.innerHTML += `<div class="y-axis-label" style="top: ${P + H}px; left: ${P - 5}px;">0</div>`;
-    container.innerHTML += `<div class="y-axis-label" style="top: ${P}px; left: ${P - 5}px;">5</div>`;
+    // Add Legend/Title inside container
+    container.innerHTML = `
+        <div style="text-align:center; margin-bottom:10px; font-size:0.9rem; color:var(--primary);">
+            <strong>Cumulative Ideas Generated: ${cumulativeTotal}</strong>
+        </div>
+    ` + svg;
 }
 
 // --- UTILITY FUNCTIONS ---
+
+function toggleGameMode() {
+    const mode = document.querySelector('input[name="game-mode"]:checked').value;
+    const oppositeContainer = document.getElementById('opposite-mode-container');
+    
+    if (mode === 'connect') {
+        oppositeContainer.style.display = 'none';
+        // Uncheck opposite mode when hidden to prevent logic conflicts
+        document.getElementById('opposite-mode').checked = false;
+    } else {
+        oppositeContainer.style.display = 'flex';
+    }
+    savePreferences();
+}
 
 function getArticle(word) {
     const cleanWord = word.replace(/<\/?strong>/g, ''); 
@@ -335,6 +395,19 @@ function getPrimeAngle(isOpposite, promptType) {
     return category[Math.floor(Math.random() * category.length)];
 }
 
+
+function generateConnectPrompt() {
+    const noun1 = nouns[Math.floor(Math.random() * nouns.length)];
+    let noun2 = nouns[Math.floor(Math.random() * nouns.length)];
+    
+    // Ensure they are different
+    while (noun1 === noun2) {
+        noun2 = nouns[Math.floor(Math.random() * nouns.length)];
+    }
+    
+    const text = `Connect <strong>${noun1}</strong> and <strong>${noun2}</strong>. Find a link, a shared use, or combine them!`;
+    return { text: text, type: 'functional' }; // Treat as functional for priming purposes
+}
 
 function generatePromptText(isOpposite, promptType) {
     let selectedTemplates = [];
@@ -400,11 +473,44 @@ function loadSettings() {
     isBrutalMode = document.getElementById('brutal-mode').checked; 
     isWildcardMode = document.getElementById('wildcard-mode').checked;
     
+    // Check which radio button is selected
+    const gameMode = document.querySelector('input[name="game-mode"]:checked').value;
+    isConnectMode = (gameMode === 'connect');
+    
     MIN_IDEAS = Math.ceil((GEN_TIME / 60) * IDEAS_PER_MINUTE_TARGET);
 }
 
 function startIncubation() {
-    loadSettings();
+    let isOpposite = false;
+    let requestedPromptType = 'all';
+
+    if (appMode === 'training') {
+        // --- TRAINING MODE RULES ---
+        TOTAL_ROUNDS = 10;
+        GEN_TIME = 60;
+        PRUNE_TIME = 60;
+        isWildcardMode = true;
+        isBrutalMode = document.getElementById('training-brutal-mode').checked;
+        
+        // Determine round number (logic mirrors the increment below)
+        let nextRound = (currentRound === 0) ? 1 : currentRound + 1;
+        
+        // Rounds 6-10 are Connect Mode
+        isConnectMode = (nextRound > 5);
+        
+        // Random Negate (30% chance)
+        isOpposite = Math.random() < 0.3;
+        
+        MIN_IDEAS = Math.ceil((GEN_TIME / 60) * IDEAS_PER_MINUTE_TARGET);
+        requestedPromptType = 'all';
+        
+    } else {
+        // --- CUSTOM MODE ---
+        loadSettings();
+        isOpposite = document.getElementById('opposite-mode').checked;
+        requestedPromptType = document.getElementById('prompt-type').value;
+    }
+
     if (currentRound === 0) {
         sessionResults = []; 
         currentRound = 1;
@@ -419,16 +525,20 @@ function startIncubation() {
         currentRound++;
     }
     
-    const isOpposite = document.getElementById('opposite-mode').checked;
-    const requestedPromptType = document.getElementById('prompt-type').value;
-    
     // 1. Generate Prompt Text and determine its actual type
-    const promptResult = generatePromptText(isOpposite, requestedPromptType);
+    let promptResult;
+    if (isConnectMode) {
+        promptResult = generateConnectPrompt();
+    } else {
+        promptResult = generatePromptText(isOpposite, requestedPromptType);
+    }
+    
     currentPromptText = promptResult.text;
     const actualPromptType = promptResult.type;
 
     // 2. Select Contextual Prime Angle
     currentPrime = getPrimeAngle(isOpposite, actualPromptType);
+
     
     // Update Modal UI
     document.getElementById('modal-prompt').innerHTML = currentPromptText;
@@ -543,7 +653,9 @@ function startPruningPhase() {
         
         const pruneWildcardDisplay = document.getElementById('prune-wildcard-display');
         if (currentWildcard) {
-            pruneWildcardDisplay.innerText = `Constraint to Check: ${currentWildcard}`;
+            // Clean up the text: Remove "⚡ New Rule: " prefix
+            const cleanRule = currentWildcard.replace("⚡ New Rule: ", "");
+            pruneWildcardDisplay.innerText = `Constraint to Check: ${cleanRule}`;
             pruneWildcardDisplay.style.display = 'block';
         } else {
             pruneWildcardDisplay.style.display = 'none';
@@ -765,67 +877,87 @@ function renderSessionMetrics() {
 }
 
 function renderProgressGraph() {
-    const history = historicalSessions;
     const container = document.getElementById('graph-container');
     container.innerHTML = '';
     
-    if (history.length < 1) {
-        container.innerHTML = `<p style="text-align: center; color: var(--secondary);">Complete at least 1 session to start tracking and graphing your progress!</p>`;
+    if (sessionResults.length === 0) {
+        container.innerHTML = `<p style="text-align: center; color: var(--secondary);">No data available for this session.</p>`;
         return;
     }
 
+    // Calculate cumulative data for Ogive Curve
+    const dataPoints = [];
+    let cumulativeCount = 0;
+    
+    // Start at (0,0)
+    dataPoints.push({ round: 0, total: 0 });
+
+    sessionResults.forEach(r => {
+        cumulativeCount += r.count;
+        dataPoints.push({ round: r.round, total: cumulativeCount });
+    });
+
+    const maxIdeas = cumulativeCount;
+    // Use TOTAL_ROUNDS for X-axis to show progress relative to goal, 
+    // but ensure we at least cover the rounds played (in case settings changed mid-game)
+    const maxRounds = Math.max(TOTAL_ROUNDS, sessionResults[sessionResults.length-1].round); 
+
     const W = 500; 
     const H = 200; 
-    const P = 20; 
-    const maxY = 5; 
-    const totalSessions = history.length;
-    const xStep = totalSessions > 1 ? W / (totalSessions - 1) : W;
+    const P = 30; 
     
-    let svg = `<svg width="${W + 2 * P}" height="${H + 2 * P}" viewBox="0 0 ${W + 2 * P} ${H + 2 * P}" style="background: #f8fafc;">`;
+    // Y-Axis Scale (Max ideas + buffer)
+    const yMax = Math.max(maxIdeas * 1.1, 10); 
+    
+    let svg = `<svg width="100%" height="100%" viewBox="0 0 ${W + 2 * P} ${H + 2 * P}" style="background: #f8fafc; border-radius: 8px;">`;
     svg += `<g transform="translate(${P}, ${P})">`;
 
-    for (let i = 0; i <= maxY; i++) {
-        const y = H - (i / maxY) * H;
+    // Grid lines (Y axis)
+    for (let i = 0; i <= 5; i++) {
+        const val = (yMax / 5) * i;
+        const y = H - (i / 5) * H;
         svg += `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="2" />`;
+        svg += `<text x="-8" y="${y + 4}" font-size="10" fill="#94a3b8" text-anchor="end">${Math.round(val)}</text>`;
     }
     
-    for (let i = 0; i < totalSessions; i++) {
+    // X Axis Labels
+    const xStep = W / maxRounds;
+    for (let i = 0; i <= maxRounds; i++) {
         const x = i * xStep;
-        svg += `<text x="${x}" y="${H + 15}" font-size="10" fill="var(--secondary)" text-anchor="middle">${i + 1}</text>`;
+        svg += `<text x="${x}" y="${H + 15}" font-size="10" fill="#94a3b8" text-anchor="middle">${i}</text>`;
     }
-    svg += `<text x="${W / 2}" y="${H + 35}" font-size="10" fill="var(--secondary)" text-anchor="middle">Session Number</text>`;
+    svg += `<text x="${W / 2}" y="${H + 35}" font-size="10" fill="#64748b" text-anchor="middle">Round Number</text>`;
 
-
-    const pointsOrg = [];
-    const pointsViab = [];
-
-    history.forEach((session, index) => {
-        const x = index * xStep;
-        const yOrg = H - (session.avgOriginality / maxY) * H;
-        const yViab = H - (session.avgViability / maxY) * H;
-        
-        pointsOrg.push(`${x},${yOrg}`);
-        pointsViab.push(`${x},${yViab}`);
+    // Calculate Coordinates
+    const points = dataPoints.map(p => {
+        const x = (p.round / maxRounds) * W;
+        const y = H - (p.total / yMax) * H;
+        return `${x},${y}`;
     });
 
-    svg += `<polyline fill="none" stroke="var(--primary)" stroke-width="2" points="${pointsOrg.join(' ')}" />`;
-    pointsOrg.forEach(point => {
-        const [x, y] = point.split(',');
-        svg += `<circle cx="${x}" cy="${y}" r="3" fill="var(--primary)" />`;
-    });
+    // Area Fill
+    const areaPoints = [`0,${H}`, ...points, `${points[points.length-1].split(',')[0]},${H}`];
+    svg += `<polygon points="${areaPoints.join(' ')}" fill="var(--primary)" fill-opacity="0.1" />`;
+
+    // The Line
+    svg += `<polyline fill="none" stroke="var(--primary)" stroke-width="3" points="${points.join(' ')}" stroke-linecap="round" stroke-linejoin="round"/>`;
     
-    svg += `<polyline fill="none" stroke="var(--accent)" stroke-width="2" points="${pointsViab.join(' ')}" />`;
-    pointsViab.forEach(point => {
+    // The Dots & Labels
+    points.forEach((point, i) => {
         const [x, y] = point.split(',');
-        svg += `<circle cx="${x}" cy="${y}" r="3" fill="var(--accent)" />`;
+        const val = dataPoints[i].total;
+        
+        // Label above dot (skip 0)
+        if (i > 0) { 
+             svg += `<text x="${x}" y="${y - 10}" font-size="11" fill="var(--primary)" font-weight="bold" text-anchor="middle">${val}</text>`;
+        }
+        
+        svg += `<circle cx="${x}" cy="${y}" r="4" fill="#fff" stroke="var(--primary)" stroke-width="2" />`;
     });
 
     svg += `</g></svg>`;
 
-    container.innerHTML += svg;
-    
-    container.innerHTML += `<div class="y-axis-label" style="top: ${P + H}px; left: ${P - 15}px;">0</div>`;
-    container.innerHTML += `<div class="y-axis-label" style="top: ${P}px; left: ${P - 15}px;">5</div>`;
+    container.innerHTML = svg;
 }
 
 document.addEventListener('DOMContentLoaded', loadSessionHistory);
@@ -835,3 +967,7 @@ window.updateScore = updateScore;
 window.startIncubation = startIncubation;
 window.clearHistory = clearHistory;
 window.endPruningPhase = endPruningPhase;
+window.setAppMode = setAppMode;
+
+// Initialize View
+setAppMode('custom');
