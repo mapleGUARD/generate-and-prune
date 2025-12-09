@@ -100,6 +100,7 @@ const screens = {
 
 function setAppMode(mode) {
     appMode = mode;
+    localStorage.setItem('appMode', mode); // Persist selection
     
     // Update Buttons
     document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
@@ -689,12 +690,13 @@ function startPruningPhase() {
         if (isBrutalMode) {
             failContent.classList.add('brutal-fail-content');
             failTitle.innerHTML = "BRUTAL FAILURE! 💀";
-            failNextStep.innerText = "Session terminated. Check your session summary.";
+            failNextStep.innerText = "Session restarting from Round 1...";
             failModal.style.display = 'flex';
             
             setTimeout(() => {
                 failModal.style.display = 'none';
-                finishSession(); 
+                currentRound = 0; // Reset round counter
+                startIncubation(); // Restart session
             }, 3000);
 
         } else {
@@ -969,5 +971,6 @@ window.clearHistory = clearHistory;
 window.endPruningPhase = endPruningPhase;
 window.setAppMode = setAppMode;
 
-// Initialize View
-setAppMode('custom');
+// Initialize View based on saved preference or default to 'custom'
+const savedMode = localStorage.getItem('appMode') || 'custom';
+setAppMode(savedMode);
