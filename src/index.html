@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate & Prune | Contextual Priming</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body onload="loadSessionHistory()">
+
+<header>
+    <h1>Generate & Prune 🧠</h1>
+    <div class="subtitle">Contextual Priming & Adaptive Training</div>
+</header>
+
+<div id="app-container">
+
+    <div id="landing-screen" class="screen active">
+        <h2>Cognitive Workout Setup</h2>
+        
+        <div class="settings-group">
+            <label for="num-rounds">Number of Rounds per Session</label>
+            <input type="number" id="num-rounds" value="5" min="1" max="20">
+            <small>Total DMN-ECN cycles in this session.</small>
+        </div>
+        
+        <div class="settings-group">
+            <label for="gen-duration">Generation Phase Duration (DMN)</label>
+            <input type="number" id="gen-duration" value="45" min="15" max="180">
+            <small>Seconds allowed for idea generation.</small>
+        </div>
+
+        <div class="settings-group">
+            <label for="prune-duration">Pruning Phase Duration (ECN)</label>
+            <input type="number" id="prune-duration" value="60" min="30" max="180">
+            <small>Seconds allowed for critical review.</small>
+        </div>
+        
+        <div class="settings-group">
+            <label for="prompt-type">Prompt Focus</label>
+            <select id="prompt-type">
+                <option value="all">Mixed (Hypothetical, Functional, Constraint)</option>
+                <option value="functional">Functional/Object Use (Action-Oriented)</option>
+                <option value="hypothetical">Hypothetical/Scenario (Context-Oriented)</option>
+            </select>
+        </div>
+        
+        <div class="settings-group" style="border-color: var(--brutal);">
+            
+            <div class="mode-toggle">
+                <input type="checkbox" id="brutal-mode">
+                <label for="brutal-mode" style="color: var(--brutal);"><strong>🔥 BRUTAL MODE: Session Ends on First Failure!</strong></label>
+            </div>
+            
+            <div class="mode-toggle">
+                <input type="checkbox" id="opposite-mode">
+                <label for="opposite-mode"><strong>Opposite Mode</strong> (Negative Constraints)</label>
+            </div>
+            
+        </div>
+
+        <button class="btn" onclick="startIncubation()">Start Session</button>
+        <button class="btn" style="background: var(--secondary); margin-top: 0.5rem;" onclick="clearHistory()">Clear History</button>
+    </div>
+
+    <div id="gen-screen" class="screen">
+        <div class="round-status" id="gen-round-status"></div>
+        <span class="tag tag-dmn">DMN Activation: Generate!</span>
+        <div class="success-metric" id="min-idea-status"></div>
+        <div class="timer-box" id="gen-timer">00:00</div>
+        <div class="prompt-box" id="gen-prompt"></div>
+        <div id="gen-prime-display" style="text-align: center; color: var(--prime-color); font-weight: bold; margin-bottom: 10px; font-size: 0.9rem;"></div>
+        
+        <input type="text" id="idea-input" placeholder="Type idea and hit Enter..." autocomplete="off">
+        <ul class="idea-list" id="gen-list"></ul>
+        <p style="font-size: 0.8rem; text-align: center; color: #94a3b8; margin-top: 10px;">Quantity over Quality. Don't censor.</p>
+    </div>
+
+    <div id="prune-screen" class="screen">
+        <div class="round-status" id="prune-round-status"></div>
+        <span class="tag tag-ecn">ECN Activation: Prune!</span>
+        <div class="timer-box" id="prune-timer">00:00</div>
+        <p>Evaluate your ideas based on <strong>Originality</strong> and <strong>Viability</strong>.</p>
+        <div id="prune-list" style="max-height: 400px; overflow-y: auto;"></div>
+        <button class="btn" onclick="endPruningPhase()">End Round</button>
+    </div>
+
+    <div id="result-screen" class="screen">
+        <h2>Session Complete 🎉</h2>
+        <p>You completed <strong id="summary-total-rounds">0</strong> rounds.</p>
+        
+        <div id="progress-graph">
+            <h3>Progress Across Sessions</h3>
+            <div id="graph-container">
+                <p>Complete more sessions to see a graph of your progress!</p>
+            </div>
+            <div class="graph-legend">
+                <span class="legend-item legend-originality">Originality</span> | 
+                <span class="legend-item legend-viability">Viability</span>
+            </div>
+        </div>
+        
+        <div id="summary-metrics"></div>
+        <button class="btn" onclick="location.reload()">Start New Session</button>
+    </div>
+    
+    <div id="incubation-modal">
+        <div id="modal-content">
+            <div class="round-status" id="modal-round-status"></div>
+            <h2 style="font-size: 1rem; color: #cbd5e1; text-transform: uppercase; letter-spacing: 1px;">Incubation Phase</h2>
+            
+            <div id="modal-countdown">10</div>
+            
+            <div id="prime-box">Prime: <span id="modal-prime"></span></div>
+            
+            <div id="modal-prompt"></div> </div>
+    </div>
+    
+    <div id="fail-modal">
+        <div class="fail-content" id="fail-modal-content">
+            <h2 id="fail-title">ROUND FAILED! ❌</h2>
+            <p>You did not meet the minimum requirement of <strong id="fail-required">0</strong> ideas.</p>
+            <p>Ideas generated: <strong id="fail-generated">0</strong></p>
+            <p style="margin-top: 1.5rem;" id="fail-next-step">The next round will begin shortly.</p>
+        </div>
+    </div>
+
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
