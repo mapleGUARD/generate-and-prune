@@ -245,6 +245,70 @@ input[type="text"]:focus { border-color: var(--primary); }
     transform: translateY(-50%);
 }
 
+.wildcard-box {
+    background: #fff7ed;
+    border: 2px dashed #f97316;
+    color: #c2410c;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 8px;
+    font-weight: bold;
+    text-align: center;
+    animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes popIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+    background: rgba(0, 0, 0, 0.8);
+    display: none; justify-content: center; align-items: center; 
+    z-index: 1500;
+}
+.stats-content {
+    background: var(--card-bg);
+    padding: 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    color: var(--text);
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+.stat-card {
+    background: var(--bg);
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+}
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--secondary);
+    margin-top: 5px;
+}
+.graph-container {
+    margin-top: 1rem;
+    padding: 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    position: relative;
+    background: #fff;
+}
+
 /* Prune list styles for scoring */
 .prune-item {
     padding: 15px 0;

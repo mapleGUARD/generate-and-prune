@@ -53,6 +53,19 @@ const oppositeTemplates = [
     "What is the most boring thing to do with {a/an} {adj_word} {noun_word}?"
 ];
 
+const wildcards = [
+    "⚡ New Rule: No using your hands!",
+    "⚡ New Rule: Must involve water!",
+    "⚡ New Rule: Cost must be under $10!",
+    "⚡ New Rule: Must be silent!",
+    "⚡ New Rule: Must be edible!",
+    "⚡ New Rule: Must be invisible!",
+    "⚡ New Rule: Must be heavy!",
+    "⚡ New Rule: Must be tiny!",
+    "⚡ New Rule: Must be made of paper!",
+    "⚡ New Rule: Must be dangerous!"
+];
+
 // --- CONFIGURATION ---
 let GEN_TIME = 45; 
 let PRUNE_TIME = 60; 
@@ -68,10 +81,12 @@ let historicalSessions = [];
 let currentRound = 0;
 let roundPassed = false; 
 let isBrutalMode = false; 
+let isWildcardMode = false;
 
 let timerInterval;
 let currentPromptText = "";
 let currentPrime = "";
+let currentWildcard = "";
 
 // --- DOM ELEMENTS ---
 const screens = {
@@ -97,6 +112,26 @@ function loadSessionHistory() {
             historicalSessions = [];
         }
     }
+    loadPreferences(); // Load settings on startup
+    initSettingsListeners();
+}
+
+function initSettingsListeners() {
+    const inputs = [
+        'num-rounds', 'gen-duration', 'prune-duration', 'prompt-type',
+        'brutal-mode', 'opposite-mode', 'wildcard-mode'
+    ];
+    
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', savePreferences);
+            // Also save on input for number fields to catch typing before blur
+            if (el.tagName === 'INPUT' && el.type === 'number') {
+                el.addEventListener('input', savePreferences);
+            }
+        }
+    });
 }
 
 function saveSessionHistory() {
@@ -112,6 +147,166 @@ function clearHistory() {
         alert("Session history cleared!");
         location.reload();
     }
+}
+
+// --- SETTINGS STORAGE ---
+
+function savePreferences() {
+    const settings = {
+        numRounds: document.getElementById('num-rounds').value,
+        genDuration: document.getElementById('gen-duration').value,
+        pruneDuration: document.getElementById('prune-duration').value,
+        promptType: document.getElementById('prompt-type').value,
+        brutalMode: document.getElementById('brutal-mode').checked,
+        oppositeMode: document.getElementById('opposite-mode').checked,
+        wildcardMode: document.getElementById('wildcard-mode').checked
+    };
+    localStorage.setItem('creativeTrainingSettings', JSON.stringify(settings));
+}
+
+function loadPreferences() {
+    const settings = localStorage.getItem('creativeTrainingSettings');
+    if (settings) {
+        try {
+            const s = JSON.parse(settings);
+            if(s.numRounds !== undefined) document.getElementById('num-rounds').value = s.numRounds;
+            if(s.genDuration !== undefined) document.getElementById('gen-duration').value = s.genDuration;
+            if(s.pruneDuration !== undefined) document.getElementById('prune-duration').value = s.pruneDuration;
+            if(s.promptType !== undefined) document.getElementById('prompt-type').value = s.promptType;
+            if(s.brutalMode !== undefined) document.getElementById('brutal-mode').checked = s.brutalMode;
+            if(s.oppositeMode !== undefined) document.getElementById('opposite-mode').checked = s.oppositeMode;
+            if(s.wildcardMode !== undefined) document.getElementById('wildcard-mode').checked = s.wildcardMode;
+            
+            loadSettings(); // Sync global variables with loaded settings
+        } catch (e) {
+            console.error("Error loading settings:", e);
+        }
+    }
+}
+
+// --- STATISTICS FEATURE ---
+
+function openStats() {
+    document.getElementById('stats-modal').style.display = 'flex';
+    renderGlobalStats();
+    renderGlobalGraph();
+}
+
+function closeStats() {
+    document.getElementById('stats-modal').style.display = 'none';
+}
+
+function renderGlobalStats() {
+    const totalSessions = historicalSessions.length;
+    let totalIdeas = 0;
+    let totalPassedRounds = 0;
+    let sumOrg = 0;
+    let sumViab = 0;
+
+    historicalSessions.forEach(s => {
+        totalIdeas += s.totalIdeas;
+        totalPassedRounds += s.passedRounds;
+        // Weighted average based on passed rounds per session isn't stored directly, 
+        // but we have avgOriginality for the session.
+        // Simple average of session averages for now:
+        sumOrg += s.avgOriginality;
+        sumViab += s.avgViability;
+    });
+
+    const globalAvgOrg = totalSessions > 0 ? (sumOrg / totalSessions).toFixed(1) : "0.0";
+    const globalAvgViab = totalSessions > 0 ? (sumViab / totalSessions).toFixed(1) : "0.0";
+
+    const grid = document.getElementById('global-stats-grid');
+    grid.innerHTML = `
+        <div class="stat-card">
+            <div class="stat-value">${totalSessions}</div>
+            <div class="stat-label">Sessions Completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${totalIdeas}</div>
+            <div class="stat-label">Total Ideas</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${totalPassedRounds}</div>
+            <div class="stat-label">Rounds Passed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color:var(--primary);">${globalAvgOrg}</div>
+            <div class="stat-label">Avg Originality</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color:var(--accent);">${globalAvgViab}</div>
+            <div class="stat-label">Avg Viability</div>
+        </div>
+    `;
+}
+
+function renderGlobalGraph() {
+    // Reusing the graph logic but targeting the stats modal container
+    const history = historicalSessions;
+    const container = document.getElementById('stats-graph-container');
+    container.innerHTML = '';
+    
+    if (history.length < 1) {
+        container.innerHTML = `<p style="text-align: center; color: var(--secondary); padding: 20px;">Complete at least 1 session to see your progress graph!</p>`;
+        return;
+    }
+
+    const W = 500; 
+    const H = 200; 
+    const P = 20; 
+    const maxY = 5; 
+    const totalSessions = history.length;
+    const xStep = totalSessions > 1 ? W / (totalSessions - 1) : W;
+    
+    let svg = `<svg width="100%" height="100%" viewBox="0 0 ${W + 2 * P} ${H + 2 * P}" style="background: #fff;">`;
+    svg += `<g transform="translate(${P}, ${P})">`;
+
+    // Grid lines
+    for (let i = 0; i <= maxY; i++) {
+        const y = H - (i / maxY) * H;
+        svg += `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="2" />`;
+    }
+    
+    // X Axis Labels (Session Numbers)
+    // If too many sessions, skip labels
+    const skip = Math.ceil(totalSessions / 10);
+    for (let i = 0; i < totalSessions; i+=skip) {
+        const x = i * xStep;
+        svg += `<text x="${x}" y="${H + 15}" font-size="10" fill="var(--secondary)" text-anchor="middle">${i + 1}</text>`;
+    }
+
+    const pointsOrg = [];
+    const pointsViab = [];
+
+    history.forEach((session, index) => {
+        const x = index * xStep;
+        const yOrg = H - (session.avgOriginality / maxY) * H;
+        const yViab = H - (session.avgViability / maxY) * H;
+        
+        pointsOrg.push(`${x},${yOrg}`);
+        pointsViab.push(`${x},${yViab}`);
+    });
+
+    svg += `<polyline fill="none" stroke="var(--primary)" stroke-width="2" points="${pointsOrg.join(' ')}" />`;
+    pointsOrg.forEach(point => {
+        const [x, y] = point.split(',');
+        svg += `<circle cx="${x}" cy="${y}" r="3" fill="var(--primary)" />`;
+    });
+    
+    svg += `<polyline fill="none" stroke="var(--accent)" stroke-width="2" points="${pointsViab.join(' ')}" />`;
+    pointsViab.forEach(point => {
+        const [x, y] = point.split(',');
+        svg += `<circle cx="${x}" cy="${y}" r="3" fill="var(--accent)" />`;
+    });
+
+    svg += `</g></svg>`;
+
+    container.innerHTML += svg;
+    
+    // Y Axis Labels
+    container.innerHTML += `<div class="y-axis-label" style="top: ${P + H}px; left: ${P - 5}px;">0</div>`;
+    container.innerHTML += `<div class="y-axis-label" style="top: ${P}px; left: ${P - 5}px;">5</div>`;
 }
 
 // --- UTILITY FUNCTIONS ---
@@ -203,6 +398,7 @@ function loadSettings() {
     PRUNE_TIME = parseInt(document.getElementById('prune-duration').value) || 60;
     TOTAL_ROUNDS = parseInt(document.getElementById('num-rounds').value) || 5;
     isBrutalMode = document.getElementById('brutal-mode').checked; 
+    isWildcardMode = document.getElementById('wildcard-mode').checked;
     
     MIN_IDEAS = Math.ceil((GEN_TIME / 60) * IDEAS_PER_MINUTE_TARGET);
 }
@@ -213,6 +409,13 @@ function startIncubation() {
         sessionResults = []; 
         currentRound = 1;
     } else {
+        // Adaptive Difficulty: If previous round was passed easily, increase difficulty
+        if (sessionResults.length > 0) {
+            const lastResult = sessionResults[sessionResults.length - 1];
+            if (lastResult.status === "PASSED" && lastResult.count >= MIN_IDEAS + 3) {
+                MIN_IDEAS += 2; 
+            }
+        }
         currentRound++;
     }
     
@@ -261,6 +464,12 @@ function startGame() {
     // Show the prime during generation as a reminder
     document.getElementById('gen-prime-display').innerText = `Angle: ${currentPrime}`;
     
+    // Reset Wildcard Display
+    const wildcardBox = document.getElementById('gen-wildcard');
+    wildcardBox.style.display = 'none';
+    wildcardBox.innerText = '';
+    currentWildcard = "";
+
     const minIdeaStatusElement = document.getElementById('min-idea-status');
     minIdeaStatusElement.innerText = `Goal: ${MIN_IDEAS} ideas to pass (Rate: ${IDEAS_PER_MINUTE_TARGET}/min). Current: 0`;
     minIdeaStatusElement.style.color = 'var(--secondary)';
@@ -276,15 +485,28 @@ function startGame() {
 function startGenTimer() {
     let timeLeft = GEN_TIME;
     const timerDisplay = document.getElementById('gen-timer');
+    const halfTime = Math.floor(GEN_TIME / 2);
 
     timerInterval = setInterval(() => {
         timeLeft--;
         timerDisplay.innerText = formatTime(timeLeft);
+
+        if (isWildcardMode && timeLeft === halfTime) {
+            triggerWildcard();
+        }
+
         if (timeLeft <= 0) {
             clearInterval(timerInterval);
             startPruningPhase();
         }
     }, 1000);
+}
+
+function triggerWildcard() {
+    const wildcardBox = document.getElementById('gen-wildcard');
+    currentWildcard = wildcards[Math.floor(Math.random() * wildcards.length)];
+    wildcardBox.innerText = currentWildcard;
+    wildcardBox.style.display = 'block';
 }
 
 ideaInput.addEventListener('keypress', function (e) {
@@ -318,6 +540,15 @@ function startPruningPhase() {
         roundPassed = true;
         switchScreen('prune');
         document.getElementById('prune-round-status').innerText = `Round ${currentRound} of ${TOTAL_ROUNDS}`;
+        
+        const pruneWildcardDisplay = document.getElementById('prune-wildcard-display');
+        if (currentWildcard) {
+            pruneWildcardDisplay.innerText = `Constraint to Check: ${currentWildcard}`;
+            pruneWildcardDisplay.style.display = 'block';
+        } else {
+            pruneWildcardDisplay.style.display = 'none';
+        }
+
         renderPruneList();
         
         let timeLeft = PRUNE_TIME;
